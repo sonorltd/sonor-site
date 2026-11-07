@@ -1,0 +1,26 @@
+import asyncio, os, json
+from playwright.async_api import async_playwright
+HERE=os.path.dirname(os.path.abspath(__file__))
+async def main():
+  async with async_playwright() as p:
+    b=await p.chromium.launch(); ctx=await b.new_context(viewport={'width':1024,'height':1100},accept_downloads=True); pg=await ctx.new_page(); errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)))
+    await pg.goto('file://'+os.path.join(HERE,'harness.html')); await pg.wait_for_timeout(900)
+    print('bar:', await pg.inner_text('.st-sub'))
+    await pg.click('[data-dev="LXKP-GF-PLAY"]'); await pg.wait_for_timeout(200)
+    print('tech:', (await pg.inner_text('.st-tech')).replace('\n',' | '))
+    await pg.click('[data-chk="k3"]'); await pg.wait_for_timeout(1200)
+    print('tick rpc:', [c for c in await pg.evaluate('CALLS') if c[0]=='punch_tick'])
+    await pg.fill('#stFind','projector'); await pg.wait_for_timeout(200); print('find → devices:', await pg.eval_on_selector_all('.st-dev','e=>e.map(x=>x.dataset.dev)'))
+    await pg.fill('#stFind',''); await pg.wait_for_timeout(200)
+    await pg.click('[data-act="note"]'); await pg.select_option('#stKind','change'); await pg.select_option('#stCh','moved'); await pg.select_option('#stDev','LXKP-GF-PLAY')
+    await pg.fill('#stText','Keypad moved 300mm left'); await pg.click('#stPinBtn'); await pg.wait_for_timeout(300)
+    box=await pg.locator('.st-pick canvas').bounding_box(); await pg.mouse.click(box['x']+box['width']*.25, box['y']+box['height']*.5); await pg.click('[data-p="ok"]'); await pg.wait_for_timeout(100)
+    await pg.click('#stSave'); await pg.wait_for_timeout(1500)
+    up=[c for c in await pg.evaluate('CALLS') if c[0]=='site_note_upsert']; r=up[-1][1]['p']; print('note rpc:', {k:r[k] for k in ('kind','change_type','device_uid','floor_id','plan_id','to_x','to_y','x')})
+    await pg.click('[data-tab="notes"]'); await pg.wait_for_timeout(200); print('notes:', await pg.eval_on_selector_all('.st-ncard','e=>e.map(x=>x.innerText.replace(/\\n/g," | "))'))
+    await pg.screenshot(path=os.path.join(HERE,'site-notes.png'))
+    await pg.click('[data-tab="devices"]'); await pg.wait_for_timeout(200); await pg.screenshot(path=os.path.join(HERE,'site-devices.png'))
+    async with pg.expect_download() as dl: await pg.click('[data-act="report"]')
+    d=await dl.value; out=os.path.join(HERE,'site-visit-sample.pdf'); await d.save_as(out); print('report bytes', os.path.getsize(out))
+    print('sync chip:', await pg.inner_text('#stSync'), '| errors:', errs); await b.close()
+asyncio.run(main())

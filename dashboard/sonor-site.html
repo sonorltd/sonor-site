@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="graphite">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Site — Sonor</title>
+<!-- APP - Site v0.1.0 (2026-11-07) — the engineers' on-site app. Bryn: "survey and site are diff apps, survey is for that, site is for
+     engineers, they are very similar but different levels of info". Contract: ../../SITE-ARCHITECTURE.md -->
+<link rel="icon" href="../data/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sonor Site">
+<meta name="theme-color" content="#141416">
+<!-- sonor-platform §1/§2: theme FIRST, then brand.css, then the served kit (mirror fallback), then shared chrome, then the app alias layer -->
+<script src="../data/sonor-theme.js"></script>
+<link rel="stylesheet" href="../data/brand.css">
+<script type="module" src="https://apps.sonor.co.uk/sonor-kit/v1/kit.js" onerror="import('./../data/kit/kit.js')"></script>
+<link rel="stylesheet" href="../data/sonor-header.css">
+<link rel="stylesheet" href="../data/sonor-components.css">
+<link rel="stylesheet" href="../data/app-vars.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script src="../sonor-db.js"></script>
+<script src="../data/sonor-brand.js"></script>
+<script src="../data/sonor-app.js"></script>
+<script src="../data/sonor-icons.js"></script>
+<script src="../data/sonor-header.js"></script>
+<script src="../data/sonor-project-list.js"></script>
+<script src="../data/sonor-project-bar.js"></script>
+<script src="../data/sonor-service-groups.js"></script>   <!-- anything grouped by service: service order + collapsible groups (§64) -->
+<script src="../data/sonor-device-links.js"></script>     <!-- one device → every app that holds a view of it -->
+<script src="../data/sonor-outbox.js"></script>           <!-- shared offline queue (with Survey) -->
+<script src="../data/sonor-plan-image.js"></script>       <!-- shared Takeoffs plan image (with Survey) -->
+<script src="../data/sonor-site.js"></script>             <!-- the site seam: live read model + single-writer RPCs -->
+<script src="../data/site-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script src="../data/sonor-pdf-theme.js"></script>
+<script src="../data/sonor-pdf-luxury.js"></script>
+<script src="../data/site-pdf.js"></script>
+<style>
+/* ═══ SONOR SITE — app-local LAYOUT only. No :root palette, no raw hex in chrome (S-4.1). ═══ */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var(--body); color: var(--text-primary); padding-bottom: env(safe-area-inset-bottom); }
+#stApp { max-width: 980px; margin: 0 auto; padding: 4px 10px 40px; }
+.st-empty { padding: 40px 12px; text-align: center; color: var(--text-muted); }
+.st-bar { display: flex; align-items: center; gap: 6px; padding: 8px 4px; flex-wrap: wrap; }
+.st-stages { border-bottom: 1px solid var(--border); }
+.st-stages .btn.active { background: color-mix(in srgb, var(--accent) 24%, var(--card)); border-color: var(--accent); }
+.st-sub { font-size: 12.5px; color: var(--text-muted); } .st-grow { flex: 1 1 auto; }
+.st-stale { font-size: 11px; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--amber); }
+.st-tabs { margin-top: 4px; } .st-tabs .nav-actions { margin-left: auto; } #stFind { font: inherit; font-size: 13px; color: var(--text-primary); background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; min-height: 32px; width: 200px; color-scheme: dark; }
+.st-body { padding: 6px 0 20px; }
+.st-body h4, .st-floor h4 { margin: 16px 4px 6px; font-size: 13.5px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.st-rev { font: 400 11px 'DM Mono', monospace; color: var(--text-muted); } .st-link { font-size: 12px; color: var(--accent); text-decoration: none; }
+.st-dev { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 14px; }
+.st-dev.open { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.st-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.st-dev-n { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .st-dev-k { font: 400 10.5px 'DM Mono', monospace; color: var(--text-muted); margin-left: 8px; }
+.st-dev-r { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.st-prog { font: 600 11px 'DM Mono', monospace; padding: 2px 6px; border-radius: 8px; border: 1px solid var(--border); white-space: nowrap; }
+.st-prog[data-tone="ok"] { color: var(--green); border-color: currentColor; } .st-prog[data-tone="part"] { color: var(--amber); border-color: currentColor; } .st-prog[data-tone="dim"] { opacity: .5; }
+.st-badge { font-size: 10.5px; padding: 2px 6px; border-radius: 8px; border: 1px solid var(--border); color: var(--text-muted); white-space: nowrap; } .st-warn { color: var(--amber); }
+.st-checks { padding: 8px 8px 14px 26px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); }
+.st-tech { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); } .st-tech b { color: var(--text-primary); font-weight: 600; }
+.st-chk { display: flex; gap: 10px; align-items: flex-start; text-align: left; font: inherit; font-size: 13.5px; color: var(--text-primary); background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; min-height: 48px; cursor: pointer; }
+.st-chk.done { opacity: .7; } .st-box { width: 24px; height: 24px; flex: none; border: 2px solid var(--border); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.st-chk.done .st-box { border-color: var(--green); color: var(--green); } .st-chk-t { flex: 1 1 auto; } .st-chk-m { font-size: 11px; color: var(--text-muted); margin-left: 6px; }
+.st-note { font-size: 13px; padding: 7px 4px; border-bottom: 1px dashed var(--border); } .st-note[data-status="dismissed"], .st-note[data-status="resolved"] { opacity: .55; }
+.st-kind { font: 700 10.5px 'DM Sans', sans-serif; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border); }
+.st-kind[data-k="snag"] { color: var(--red); border-color: currentColor; } .st-kind[data-k="change"] { color: var(--amber); border-color: currentColor; } .st-kind[data-k="question"] { color: var(--accent); border-color: currentColor; }
+.st-ncard { display: flex; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); } .st-nmain { flex: 1 1 auto; min-width: 0; } .st-ph { width: 92px; height: 92px; object-fit: cover; border-radius: 6px; flex: none; }
+.st-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; align-items: center; } .st-dev-notes { margin: 4px 0; }
+.st-form { display: flex; flex-direction: column; gap: 9px; } .st-form label { font-size: 12.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+.st-form input, .st-form select, .st-form textarea { font: inherit; font-size: 15px; min-height: 42px; color: var(--text-primary); background: var(--body); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color-scheme: dark; }
+.st-pinrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .st-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.st-modal { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; } .st-modal[hidden] { display: none; }
+.st-modal-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; width: min(560px, 100%); max-height: 88vh; overflow: auto; }
+.st-modal-h { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; } .st-modal-b { padding: 14px 16px; }
+.st-pick { position: fixed; inset: 0; z-index: 400; background: var(--body); display: flex; flex-direction: column; }
+.st-pick-h { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.st-pick-c { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; min-height: 0; } .st-pick-c canvas { touch-action: none; border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+#stToast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 500; background: var(--card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.35); } #stToast[hidden] { display: none; }
+#stSync { white-space: nowrap; font-size: 12px; } #stSync[data-tone="warn"] { color: var(--amber); } #stSync[data-tone="ok"] { color: var(--green); }
+@media (max-width: 600px) { .st-dev-r, .st-dev-k { display: none; } #stFind { width: 140px; } }   /* iPhone: the device name + progress only */
+</style>
+</head>
+<body>
+<div id="sonor-header"></div>
+<script>SonorHeader.init({ appName: 'Site', repo: 'sonor-site', faviconHref: '../data/favicon.svg' });</script>
+<div id="projectBarHost"></div>
+<div class="tab-bar"><span class="nav-actions"><button class="btn btn-sm" id="stSync" type="button" title="Saving state — tap to retry now">…</button></span></div>
+<main id="stApp"></main>
+<div class="st-modal" id="stModal" hidden><div class="st-modal-card"><div class="st-modal-h"><span id="stModalTitle"></span><button class="btn btn-sm" id="stModalClose" type="button">✕</button></div><div class="st-modal-b" id="stModalBody"></div></div></div>
+<div id="stToast" hidden></div>
+<script>
+  const APP_VERSION = '0.1.0';
+  window.APP_VERSION = APP_VERSION;   // SonorApp reads global.APP_VERSION for the header badge
+  SonorApp.init({ appKey: 'site', appName: 'Site', repo: 'sonor-site', appVersion: APP_VERSION });
+</script>
+<script src="../data/site-app.js"></script>
+</body>
+</html>
