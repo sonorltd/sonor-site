@@ -1,4 +1,4 @@
-/* Sonor Site — APP (app-local, v0.1.0, 2026-11-07)
+/* Sonor Site — APP (app-local, v0.3.0 — tap a device on the embedded plan → its checks + notes in a sheet; v0.2.0 — TODAY strip from the engineers' calendar (B-807) · PLAN tab = the Takeoffs site view embedded, device 📐 → centred on it (B-806); v0.1.0, 2026-11-07)
  * Bryn: "survey and site are diff apps, survey is for that, site is for engineers, they are very similar but different levels of info".
  * The engineers' app: the project's devices with their checks per stage, site notes (note / change from plan / photo / question /
  * snag) on a device, floor, room or a 📍 point on the live Takeoffs plan, and the project's open snags + RFIs.
@@ -11,7 +11,7 @@
 (function () {
   'use strict';
   var CFG = window.__SITE_CONFIG__ || {}, $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.from((r || document).querySelectorAll(s)); };
-  var supa = null, OB = null, PID = null, M = null, stage = null, tab = 'devices', open = {}, loading = false, dirty = false, q = '';
+  var supa = null, OB = null, PID = null, M = null, stage = null, tab = 'devices', open = {}, loading = false, dirty = false, q = '', today = [], planSrc = null;
   try { stage = localStorage.getItem('sonor_site_stage') || null; } catch (e) { }
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -40,7 +40,42 @@
     $('#stModalClose').onclick = closeModal;
     $('#stSync').onclick = function () { OB.flushNow(); };
     try { navigator.serviceWorker && navigator.serviceWorker.register('./sw.js'); } catch (e) { }
+    loadToday();
     render();
+  }
+  // v0.2.0 TODAY (B-807) — the engineers' Google Calendar is the SSOT for site scheduling (Bryn 2026-10-17): today's entries for the
+  // signed-in engineer (tasks_gcal_events, synced by Tasks), each a one-tap switch to its project; with no project picked yet and
+  // exactly one job today, that job opens on its own.
+  async function loadToday() {
+    var em = me(); if (!em || !supa) return;
+    var d0 = new Date(); d0.setHours(0, 0, 0, 0); var d1 = new Date(d0.getTime() + 864e5);
+    try {
+      var r = await supa.from('tasks_gcal_events').select('id,summary,location,starts_at,ends_at,all_day,project_id,event_status').eq('engineer_email', em.toLowerCase()).gte('starts_at', d0.toISOString()).lt('starts_at', d1.toISOString()).neq('event_status', 'cancelled').order('starts_at');
+      today = (r.data || []); if (!r.error) { try { await OB.cacheSet('today:' + em, today); } catch (e) { } }
+    } catch (e) { try { today = (await OB.cacheGet('today:' + em)) || []; } catch (e2) { today = []; } }
+    var jobs = today.filter(function (t) { return t.project_id; });
+    if (!PID && jobs.length && jobs.every(function (t) { return t.project_id === jobs[0].project_id; })) pickProject(jobs[0].project_id);
+    render();
+  }
+  function pickProject(pid) { try { if (window.SonorProjectBar && window.SonorProjectBar.setActive) { window.SonorProjectBar.setActive(pid); return; } } catch (e) { } setProject(pid); }
+  // v0.3.0 — a device tapped on the embedded plan (Takeoffs site view 1.4.0 posts 'sonor:site-device') opens that device's checks + notes
+  // in a sheet over the plan — tick and note without leaving it. Same-origin messages only.
+  window.addEventListener('message', function (e) {
+    var d = e.data; if (!d || d.type !== 'sonor:site-device' || !M) return;
+    if (e.origin !== location.origin && !(location.protocol === 'file:' && e.origin === 'null')) return;
+    var dev = M.devices.find(function (x) { return (d.uid && x.uid === d.uid) || (d.device && x.key === d.device); });
+    if (!dev) { toast((d.device || 'That device') + ' has no checks in this project yet'); return; }
+    deviceSheet(dev);
+  });
+  function deviceSheet(dev) {
+    var body = document.createElement('div'); body.className = 'st-sheet'; open[dev.key] = true;
+    function paint() {
+      body.innerHTML = deviceRow(dev);
+      $$('[data-chk]', body).forEach(function (b) { b.onclick = function () { var c = dev.checks.find(function (x) { return x.task_id === b.dataset.task && x.key === b.dataset.chk; }); if (c) { tick(dev, c); paint(); } }; });
+      $$('[data-devnote]', body).forEach(function (b) { b.onclick = function () { closeModal(); noteSheet({ device: dev }); }; });
+      $$('[data-dev-link="site"]', body).forEach(function (a) { a.onclick = function (ev) { ev.preventDefault(); closeModal(); }; });   // already on the plan
+    }
+    paint(); openModal(dev.name + (dev.room_name ? ' · ' + dev.room_name : ''), body);
   }
   function setProject(pid) { if (!pid || pid === PID) return; PID = pid; M = null; open = {}; load(); }
 
@@ -100,17 +135,23 @@
   // ---------- render ----------
   function render() {
     var host = $('#stApp'); if (!host) return;
-    if (!PID) { host.innerHTML = '<p class="st-empty">Pick a project in the bar above.</p>'; return; }
+    // the Plan tab holds a live iframe — never rebuild it for a tick / note (that would reload the plan); just refresh the counts
+    var fr = $('#stPlan'); if (tab === 'plan' && M && fr && fr.getAttribute('src') === (planSrc || planUrl())) { var sub = $('.st-sub', host); if (sub) sub.textContent = liveLine(); return; }
+    var todayHtml = today.length ? '<div class="st-today"><span class="st-today-h">Today</span>' + today.map(function (t) {
+      var tm = t.all_day ? 'All day' : new Date(t.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      return '<button class="st-job' + (t.project_id && t.project_id === PID ? ' on' : '') + '"' + (t.project_id ? ' data-job="' + esc(t.project_id) + '"' : ' disabled title="Not linked to a project in the calendar"') + '><b>' + esc(tm) + '</b> ' + esc(t.summary || 'Job') + '</button>';
+    }).join('') + '</div>' : '';
+    if (!PID) { host.innerHTML = todayHtml + '<p class="st-empty">Pick a project in the bar above' + (today.length ? ' or one of today’s jobs' : '') + '.</p>'; wire(host); return; }
     if (!M) { host.innerHTML = '<p class="st-empty">' + (loading ? 'Loading the live project…' : 'Could not load this project.') + '</p>'; return; }
     var openNotes = M.notes.filter(function (n) { return n.status === 'open'; }).length, openSnags = M.snags.filter(function (s) { return !/done|cancelled/.test(s.status || ''); }).length, openRfis = M.rfis.filter(function (r) { return !/closed|answered/.test(r.status || ''); }).length;
-    host.innerHTML = '<div class="st-bar"><span class="st-sub">' + esc(liveLine()) + '</span>' + (M.stale ? '<span class="st-stale" title="' + esc(M.error || '') + '">Offline copy · ' + esc(fmtDate(M.at)) + '</span>' : '')
+    host.innerHTML = todayHtml + '<div class="st-bar"><span class="st-sub">' + esc(liveLine()) + '</span>' + (M.stale ? '<span class="st-stale" title="' + esc(M.error || '') + '">Offline copy · ' + esc(fmtDate(M.at)) + '</span>' : '')
       + '<span class="st-grow"></span><button class="btn btn-sm" data-act="reload" title="Reload from every app">⟳</button><button class="btn btn-sm" data-act="report">📄 Visit report</button><button class="btn btn-sm btn-primary" data-act="note">＋ Site note</button></div>'
       + '<div class="st-bar st-stages"><button class="btn btn-sm' + (!stage ? ' active' : '') + '" data-stage="">All stages</button>' + (M.stages || []).map(function (s) { return '<button class="btn btn-sm' + (stage === s.key ? ' active' : '') + '" data-stage="' + esc(s.key) + '">' + esc(s.label) + '</button>'; }).join('') + '</div>'
-      + '<div class="tab-bar st-tabs">' + [['devices', 'Devices'], ['notes', 'Site notes' + (openNotes ? ' · ' + openNotes : '')], ['snags', 'Snags & RFIs' + ((openSnags + openRfis) ? ' · ' + (openSnags + openRfis) : '')]].map(function (t) { return '<button class="tab' + (tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('')
+      + '<div class="tab-bar st-tabs">' + [['devices', 'Devices'], ['plan', 'Plan'], ['notes', 'Site notes' + (openNotes ? ' · ' + openNotes : '')], ['snags', 'Snags & RFIs' + ((openSnags + openRfis) ? ' · ' + (openSnags + openRfis) : '')]].map(function (t) { return '<button class="tab' + (tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('')
       + (tab === 'devices' ? '<span class="nav-actions"><input id="stFind" type="search" placeholder="Find a device or room" value="' + esc(q) + '"></span>' : '') + '</div>'
       + '<div class="st-body" id="stBody"></div>';
     var body = $('#stBody');
-    if (tab === 'devices') renderDevices(body); else if (tab === 'notes') renderNotes(body); else renderSnags(body);
+    if (tab === 'devices') renderDevices(body); else if (tab === 'plan') renderPlan(body); else if (tab === 'notes') renderNotes(body); else renderSnags(body);
     wire(host);
   }
   function liveLine() {
@@ -118,7 +159,6 @@
     return M.devices.length + ' devices · ' + dn + '/' + tot + ' checks' + (M.floors.length ? ' · ' + M.floors.map(function (f) { return f.code + (f.plan ? ' ' + (f.plan.revision_label || 'plan') : ''); }).join(' · ') : '');
   }
   function match(d) { if (!q) return true; var s = (d.name + ' ' + d.key + ' ' + (d.room_name || '') + ' ' + (d.model || '')).toLowerCase(); return q.toLowerCase().split(/\s+/).every(function (w) { return s.indexOf(w) >= 0; }); }
-  function takeoffsSiteUrl(f) { var B = window.__SONOR_BRAND__ || {}, u = (B.appUrls && B.appUrls.hosted && B.appUrls.hosted.takeoffs) || 'https://apps.sonor.co.uk/sonor-takeoffs/'; return u + 'site.html?pid=' + encodeURIComponent(PID) + (f && f.id ? '&floor=' + encodeURIComponent(f.id) : ''); }
   function renderDevices(body) {
     var groups = window.SonorSite.byFloor(M); if (!groups.length) { body.innerHTML = '<p class="st-empty">No devices in this project’s design yet — they appear as soon as Takeoffs or Engineering has them.</p>'; return; }
     groups.forEach(function (gr) {
@@ -126,7 +166,7 @@
       var fp = list.reduce(function (a, d) { var p = window.SonorSite.stageProgress(d, stage); a.d += p.done; a.t += p.total; return a; }, { d: 0, t: 0 });
       var sec = document.createElement('section'); sec.className = 'st-floor';
       sec.innerHTML = '<h4>' + esc(gr.floor.name || gr.floor.code) + (gr.floor.plan ? ' <span class="st-rev">plan ' + esc(gr.floor.plan.revision_label || '') + '</span>' : '') + ' ' + prog(fp.d, fp.t)
-        + (gr.floor.id ? ' <a class="st-link" href="' + esc(takeoffsSiteUrl(gr.floor)) + '" target="_blank" rel="noopener">Plan ↗</a>' : '') + '</h4><div class="st-groups"></div>';
+        + (gr.floor.id ? ' <a class="st-link" data-floorplan="' + esc(gr.floor.id) + '" href="' + esc(planUrl({ floor: gr.floor.id })) + '">Plan</a>' : '') + '</h4><div class="st-groups"></div>';
       body.appendChild(sec);
       var host = $('.st-groups', sec);
       window.SonorServiceGroups.render(host, list, { key: 'site-app-' + gr.floor.code, getNn: function (d) { return d.nn; }, row: deviceRow, tier: 'client', toolbar: false,
@@ -136,13 +176,15 @@
     $$('[data-dev]', body).forEach(function (r) { r.onclick = function (e) { if (e.target.closest('[data-chk],[data-devnote],a')) return; open[r.dataset.dev] = !open[r.dataset.dev]; render(); }; });
     $$('[data-chk]', body).forEach(function (b) { b.onclick = function () { var d = M.devices.find(function (x) { return x.key === b.dataset.dk; }), c = d && d.checks.find(function (x) { return x.task_id === b.dataset.task && x.key === b.dataset.chk; }); if (c) tick(d, c); }; });
     $$('[data-devnote]', body).forEach(function (b) { b.onclick = function () { noteSheet({ device: M.devices.find(function (x) { return x.key === b.dataset.devnote; }) }); }; });
+    $$('[data-floorplan]', body).forEach(function (a) { a.onclick = function (e) { e.preventDefault(); planSrc = a.getAttribute('href'); tab = 'plan'; render(); }; });
+    $$('[data-dev-link="site"]', body).forEach(function (a) { a.onclick = function (e) { e.preventDefault(); planSrc = a.getAttribute('href'); tab = 'plan'; render(); }; });
   }
   function deviceRow(d) {
     var p = window.SonorSite.stageProgress(d, stage), isOpen = !!open[d.key], checks = d.checks.filter(function (c) { return !stage || c.stage === stage; }), nOpen = d.notes.filter(function (n) { return n.status === 'open'; }).length;
     var h = '<div class="st-dev' + (isOpen ? ' open' : '') + '" data-dev="' + esc(d.key) + '">' + dot(d.nn) + '<span class="st-dev-n">' + esc(d.name) + '<span class="st-dev-k">' + esc(d.key) + '</span></span><span class="st-dev-r">' + esc(d.room_name || '') + '</span>'
       + (nOpen ? '<span class="st-badge">' + nOpen + ' note' + (nOpen > 1 ? 's' : '') + '</span>' : '') + (d.source === 'punch-only' ? '<span class="st-badge st-warn">removed from design</span>' : '') + prog(p.done, p.total) + '</div>';
     if (!isOpen) return h;
-    var links = (window.SonorDeviceLinks && d.loc) ? window.SonorDeviceLinks.html(window.SonorDeviceLinks.forDevice({ project: PID, loc: d.loc, device: d.key, uid: d.uid }, { except: ['site'] }), { compact: true }) : '';
+    var links = (window.SonorDeviceLinks && d.loc) ? window.SonorDeviceLinks.html(window.SonorDeviceLinks.forDevice({ project: PID, loc: d.loc, device: d.key, uid: d.uid }), { compact: true }) : '';
     h += '<div class="st-checks">' + ((d.model || d.block_code || links) ? '<div class="st-tech">' + (d.model ? '<span>Model <b>' + esc(d.model) + '</b></span>' : '') + (d.kind ? '<span>' + esc(d.kind) + '</span>' : '') + links + '</div>' : '')
       + (checks.length ? checks.map(function (c) {
         var st = (M.stages.find(function (s) { return s.key === c.stage; }) || {}).short || c.stage || '';
@@ -159,6 +201,17 @@
     return '<div class="st-note" data-status="' + esc(n.status) + '"><span class="st-kind" data-k="' + esc(n.kind) + '">' + esc(KIND[n.kind] || n.kind) + (n.change_type ? ' · ' + esc(CH[n.change_type] || n.change_type) : '') + '</span> ' + esc(n.text || '') + '<span class="st-chk-m">' + esc(st) + (n.queued ? ' · waiting to upload' : '') + '</span></div>';
   }
   function photoUrl(path) { try { return supa.storage.from(CFG.buckets.photos).getPublicUrl(path).data.publicUrl; } catch (e) { return ''; } }
+  // v0.2.0 PLAN (B-806) — the Takeoffs read-only SITE VIEW (sonor-takeoffs-site.js, with the site-notes layer from v1.3.0) embedded:
+  // one plan viewer for every app, never a copy. A device's 📐 link opens it centred on that device.
+  function planUrl(o) {
+    o = o || {}; var L = window.SonorDeviceLinks, u = L && (o.uid || o.device || o.floor) ? L.build('takeoffsSite', 'device', { project: PID, floor: o.floor, uid: o.uid, device: o.device }) : null;
+    if (u) return u; var B = window.__SONOR_BRAND__ || {}, base = (B.appUrls && B.appUrls.hosted && B.appUrls.hosted.takeoffsSite) || 'https://apps.sonor.co.uk/sonor-takeoffs/site.html';
+    return base + '?view=site&pid=' + encodeURIComponent(PID);
+  }
+  function renderPlan(body) {
+    var src = planSrc || planUrl();
+    body.innerHTML = '<div class="st-plan"><iframe id="stPlan" title="Site plan (Takeoffs site view)" src="' + esc(src) + '" allow="fullscreen"></iframe></div><p class="st-chk-m">Read-only plan from Takeoffs · site notes show as numbered pins · needs signal · <a class="st-link" href="' + esc(src) + '" target="_blank" rel="noopener">Open full screen ↗</a></p>';
+  }
   function renderNotes(body) {
     var notes = M.notes; if (!notes.length) { body.innerHTML = '<p class="st-empty">No site notes yet. Use ＋ Site note, or open a device and add one to it.</p>'; return; }
     body.innerHTML = notes.map(function (n) {
@@ -178,7 +231,8 @@
   function wire(host) {
     $$('[data-act]', host).forEach(function (b) { b.onclick = function () { var a = b.dataset.act; if (a === 'reload') load(); else if (a === 'note') noteSheet({}); else if (a === 'report') report(); }; });
     $$('[data-stage]', host).forEach(function (b) { b.onclick = function () { stage = b.dataset.stage || null; try { localStorage.setItem('sonor_site_stage', stage || ''); } catch (e) { } render(); }; });
-    $$('[data-tab]', host).forEach(function (b) { b.onclick = function () { tab = b.dataset.tab; render(); }; });
+    $$('[data-tab]', host).forEach(function (b) { b.onclick = function () { if (b.dataset.tab === 'plan' && tab !== 'plan') planSrc = null; tab = b.dataset.tab; render(); }; });
+    $$('[data-job]', host).forEach(function (b) { b.onclick = function () { pickProject(b.dataset.job); }; });
     var f = $('#stFind', host); if (f) { f.oninput = function () { q = this.value; var pos = this.selectionStart; render(); var g = $('#stFind'); if (g) { g.focus(); try { g.setSelectionRange(pos, pos); } catch (e) { } } }; }
   }
   function renderSync(st) {
@@ -264,6 +318,6 @@
     } catch (e) { console.error(e); toast('Report failed: ' + e.message); }
   }
 
-  window.SiteApp = { boot: boot, model: function () { return M; }, reload: load, VERSION: '0.1.0' };
+  window.SiteApp = { boot: boot, model: function () { return M; }, reload: load, today: function () { return today; }, deviceSheet: deviceSheet, VERSION: '0.3.0' };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

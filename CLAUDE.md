@@ -1,6 +1,10 @@
-# Site — Claude Code Context (v0.1.0)
+# Site — Claude Code Context (v0.3.0)
 
-> **Current version: v0.1.0** — 2026-11-07 BORN (Bryn: "survey and site are diff apps, survey is for that, site is for engineers, they are very similar but different levels of info"). The engineers' on-site app, split out of Survey's short-lived Site panel (Survey v0.12–0.13). Devices by floor → service (collapsible, SonorServiceGroups) with their punch checks per stage (tick → `punch_tick`), device detail for engineers (model, kind, links to every app via SonorDeviceLinks), site notes (note / change from plan / photo / question / snag) on a device, floor, room or a 📍 point on the floor's live Takeoffs plan, open snags + RFIs, Site visit report PDF. Offline-first (own SonorOutbox queue).
+> **Current version: v0.3.0** — 2026-11-07 PLAN ↔ CHECKS: tap a device on the embedded plan and its checks + notes open in a sheet over the plan (Takeoffs site view 1.4.0 posts `sonor:site-device` to the host, same origin only); ticks no longer reload the plan (the Plan tab keeps its iframe and only refreshes the counts).
+>
+> **Previous: v0.2.0** — 2026-11-07 TODAY + PLAN: a **Today** strip of the signed-in engineer's calendar jobs (`tasks_gcal_events` — the engineers' Google Calendar is the scheduling SSOT; tap = switch project; one job today and no project picked = it opens itself; cached for offline) (B-807) · a **Plan** tab = the Takeoffs read-only site view embedded (`sonor-takeoffs/site.html`, Takeoffs v5.277.0 adds the site-notes pins), floor "Plan" links and each device's 📐 link open it centred on that device (B-806). Needs signal for the plan.
+>
+> **Previous: v0.1.0** — 2026-11-07 BORN (Bryn: "survey and site are diff apps, survey is for that, site is for engineers, they are very similar but different levels of info"). The engineers' on-site app, split out of Survey's short-lived Site panel (Survey v0.12–0.13). Devices by floor → service (collapsible, SonorServiceGroups) with their punch checks per stage (tick → `punch_tick`), device detail for engineers (model, kind, links to every app via SonorDeviceLinks), site notes (note / change from plan / photo / question / snag) on a device, floor, room or a 📍 point on the floor's live Takeoffs plan, open snags + RFIs, Site visit report PDF. Offline-first (own SonorOutbox queue).
 > **Spine version: 1.3** (declared at registration — kit-served, graphite, SonorHeader + SonorApp.init; NOT shell-mounted yet → reconcile with `workspace-apps.tsv spine_target` at the first audit; per GEL invariant 3 the declaration drops to 1.2.6 if the shell isn't adopted)
 > Inherits: `../CLAUDE.md` (master rules) · Brand source: `../Branding - CORE/brand-core.xml` · **Contract: `../SITE-ARCHITECTURE.md` — read first.**
 
@@ -24,7 +28,7 @@ Root masters consumed (synced copies — never edit here): `sonor-site.js` (Sono
 
 ## Data (SUPABASE-FIRST)
 - **Owns:** `site_notes` (see SITE-ARCHITECTURE.md for columns, statuses and RPCs). Photos → `site-photos/{project}/site/{note}.jpg`.
-- **Reads (never copies):** `punch_project_devices(project)`, `tasks_general` punch rows + snags, `takeoffs_floors` / `takeoffs_floor_plans` (+ bucket `takeoffs-plans`), `projects.metadata.plan_notes` RFIs, `tasks_punch_stages`, `v_site_project`.
+- **Reads (never copies):** `tasks_gcal_events` (today's jobs for the login), `punch_project_devices(project)`, `tasks_general` punch rows + snags, `takeoffs_floors` / `takeoffs_floor_plans` (+ bucket `takeoffs-plans`), `projects.metadata.plan_notes` RFIs, `tasks_punch_stages`, `v_site_project`.
 - **Writes into other apps only through RPCs:** `punch_tick` (Tasks check) · `site_note_resolve` ('snag' → Tasks task, 'rfi' → plan_notes RFI) · `site_note_upsert`. Who = the signed-in login, stamped server side (`sonor_who()`).
 - Migrations: `../APP - Survey/supabase/migrations/2026-11-07_site_mode.sql` + `2026-11-07b_site_mode_v2.sql` (written while Site was a Survey panel; the tables are Site's).
 
@@ -42,6 +46,8 @@ None.
 
 ## Feature timeline
 - v0.1.0 (2026-11-07) — born from Survey's Site panel; full-page engineers' app; visit report; shared outbox / plan masters extracted.
+- v0.2.0 (2026-11-07) — Today strip from the engineers' calendar; Plan tab embedding the Takeoffs site view.
+- v0.3.0 (2026-11-07) — device tapped on the plan → checks sheet (postMessage from the site view).
 
 ## Rules (app-specific)
 1. Site never moves a Takeoffs placement — changes go to Takeoffs review (accept → drawn → applied).

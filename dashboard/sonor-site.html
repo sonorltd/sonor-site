@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Site — Sonor</title>
-<!-- APP - Site v0.1.0 (2026-11-07) — the engineers' on-site app. Bryn: "survey and site are diff apps, survey is for that, site is for
+<!-- APP - Site v0.3.0 (2026-11-07 — tap a device on the plan → its checks; v0.2.0 Today strip + Plan tab; v0.1.0 born) — the engineers' on-site app. Bryn: "survey and site are diff apps, survey is for that, site is for
      engineers, they are very similar but different levels of info". Contract: ../../SITE-ARCHITECTURE.md -->
 <link rel="icon" href="../data/favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -84,6 +84,12 @@ body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var
 .st-pick { position: fixed; inset: 0; z-index: 400; background: var(--body); display: flex; flex-direction: column; }
 .st-pick-h { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .st-pick-c { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; min-height: 0; } .st-pick-c canvas { touch-action: none; border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+.st-today { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.st-today-h { font: 700 10.5px 'DM Sans', sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-right: 4px; }
+.st-job { font: inherit; font-size: 12.5px; color: var(--text-primary); background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 5px 12px; min-height: 34px; cursor: pointer; }
+.st-job.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, var(--card)); } .st-job[disabled] { opacity: .5; cursor: default; }
+.st-plan { height: calc(100vh - 260px); min-height: 420px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; } .st-plan iframe { width: 100%; height: 100%; border: 0; background: var(--body); }
+.st-sheet .st-dev { cursor: default; } .st-sheet .st-checks { padding-left: 0; border-bottom: 0; }
 #stToast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 500; background: var(--card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.35); } #stToast[hidden] { display: none; }
 #stSync { white-space: nowrap; font-size: 12px; } #stSync[data-tone="warn"] { color: var(--amber); } #stSync[data-tone="ok"] { color: var(--green); }
 @media (max-width: 600px) { .st-dev-r, .st-dev-k { display: none; } #stFind { width: 140px; } }   /* iPhone: the device name + progress only */
@@ -98,7 +104,7 @@ body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var
 <div class="st-modal" id="stModal" hidden><div class="st-modal-card"><div class="st-modal-h"><span id="stModalTitle"></span><button class="btn btn-sm" id="stModalClose" type="button">✕</button></div><div class="st-modal-b" id="stModalBody"></div></div></div>
 <div id="stToast" hidden></div>
 <script>
-  const APP_VERSION = '0.1.0';
+  const APP_VERSION = '0.3.0';
   window.APP_VERSION = APP_VERSION;   // SonorApp reads global.APP_VERSION for the header badge
   SonorApp.init({ appKey: 'site', appName: 'Site', repo: 'sonor-site', appVersion: APP_VERSION });
 </script>
