@@ -271,11 +271,12 @@
       var dv = $('#stDev', body).value, x = M.devices.find(function (y) { return y.key === dv; }) || null, kind = $('#stKind', body).value, fc = $('#stFloor', body).value || null;
       var f = M.floors.find(function (y) { return y.code === fc; }) || null, text = $('#stText', body).value.trim(), file = $('#stPhoto', body).files[0] || null, mv = moved();
       if (!text && !file) { toast('Add a note or a photo'); return; }
-      this.disabled = true;
-      await saveNote({ kind: kind, change_type: kind === 'change' ? $('#stCh', body).value : null, text: text, floor_code: fc, floor_id: f ? f.floor_id : null,
+      var btn = this; btn.disabled = true;
+      try { await saveNote({ kind: kind, change_type: kind === 'change' ? $('#stCh', body).value : null, text: text, floor_code: fc, floor_id: f ? f.floor_id : null,
         plan_id: f && f.plan ? f.plan.id : null, revision_label: f && f.plan ? f.plan.revision_label : null, room: $('#stRoom', body).value.trim() || null,
         device_uid: x ? x.uid : null, device_key: x ? x.key : null, device_label: x ? x.name : null, service_nn: x ? x.nn : null, stage: stage,
-        x: pin && !mv ? pin.x : null, y: pin && !mv ? pin.y : null, to_x: pin && mv ? pin.x : null, to_y: pin && mv ? pin.y : null }, file);
+        x: pin && !mv ? pin.x : null, y: pin && !mv ? pin.y : null, to_x: pin && mv ? pin.x : null, to_y: pin && mv ? pin.y : null }, file); }
+      catch (e) { btn.disabled = false; console.error(e); toast('Could not save the note — ' + (e && e.message || e)); return; }   // v0.4.0: was an unhandled rejection with the Save button stuck disabled
       closeModal(); toast('Site note saved' + (navigator.onLine ? '' : ' to the device — uploads when there is signal'));
     };
   }
@@ -318,6 +319,6 @@
     } catch (e) { console.error(e); toast('Report failed: ' + e.message); }
   }
 
-  window.SiteApp = { boot: boot, model: function () { return M; }, reload: load, today: function () { return today; }, deviceSheet: deviceSheet, VERSION: '0.3.0' };
+  window.SiteApp = { boot: boot, model: function () { return M; }, reload: load, today: function () { return today; }, deviceSheet: deviceSheet, VERSION: '0.4.0' };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

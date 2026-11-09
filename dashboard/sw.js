@@ -1,7 +1,7 @@
 /* Sonor Site — service worker (v0.1.0, 2026-11-07): same shape as Survey's — app shell cached at install (network-first for pages, cache-first
  * for assets), CDN libraries pre-cached (pdf.js, pdf-lib, fontkit, supabase-js in CORS mode for SRI), Supabase never cached.
  * CACHE_VERSION is bump site 2. */
-const CACHE_VERSION = 'sonor-site-0.3.0';
+const CACHE_VERSION = 'sonor-site-0.4.0';
 const SHELL = ['./sonor-site.html', './manifest.webmanifest', '../sonor-db.js', '../data/sonor-theme.js', '../data/brand.css', '../data/sonor-header.css', '../data/sonor-components.css', '../data/app-vars.css',
   '../data/sonor-brand.js', '../data/sonor-app.js', '../data/sonor-icons.js', '../data/sonor-header.js', '../data/sonor-project-list.js', '../data/sonor-project-bar.js',
   '../data/sonor-service-groups.js', '../data/sonor-device-links.js', '../data/sonor-outbox.js', '../data/sonor-plan-image.js', '../data/sonor-site.js', '../data/site-config.js', '../data/site-app.js', '../data/site-pdf.js',

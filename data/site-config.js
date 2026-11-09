@@ -1,8 +1,8 @@
 /* Sonor Site — static config (window.__SITE_CONFIG__). Engineering refs only — project data lives in Supabase (SITE-ARCHITECTURE.md). */
 (function () {
   window.__SITE_CONFIG__ = {
-    version: '0.3.0',
-    buildDate: '2026-11-07',
+    version: '0.4.0',
+    buildDate: '2026-11-10',
     appKey: 'site',
     outbox: 'sonor-site',                       // SonorOutbox IndexedDB name (this app's own queue)
     buckets: { photos: 'site-photos', plans: 'takeoffs-plans' },
