@@ -15,7 +15,7 @@
 <!-- sonor-platform §1/§2: theme FIRST, then brand.css, then the served kit (mirror fallback), then shared chrome, then the app alias layer -->
 <script src="../data/sonor-theme.js"></script>
 <link rel="stylesheet" href="../data/brand.css">
-<script type="module" src="https://apps.sonor.co.uk/sonor-kit/v1/kit.js" onerror="import('./../data/kit/kit.js')"></script>
+<script type="module" src="https://apps.sonor.co.uk/sonor-kit/v1/kit.js" onerror="import('../data/kit/kit.js')"></script>
 <link rel="stylesheet" href="../data/sonor-header.css">
 <link rel="stylesheet" href="../data/sonor-components.css">
 <link rel="stylesheet" href="../data/app-vars.css">
@@ -104,7 +104,7 @@ body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var
 <div class="st-modal" id="stModal" hidden><div class="st-modal-card"><div class="st-modal-h"><span id="stModalTitle"></span><button class="btn btn-sm" id="stModalClose" type="button">✕</button></div><div class="st-modal-b" id="stModalBody"></div></div></div>
 <div id="stToast" hidden></div>
 <script>
-  const APP_VERSION = '0.3.0';
+  const APP_VERSION = '0.4.0';
   window.APP_VERSION = APP_VERSION;   // SonorApp reads global.APP_VERSION for the header badge
   SonorApp.init({ appKey: 'site', appName: 'Site', repo: 'sonor-site', appVersion: APP_VERSION });
 </script>

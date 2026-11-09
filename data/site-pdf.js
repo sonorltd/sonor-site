@@ -1,4 +1,5 @@
-/* Sonor Site — SITE VISIT REPORT PDF (app-local, v0.1.0, 2026-11-07)
+/* Sonor Site — SITE VISIT REPORT PDF (app-local, v0.2.0, 2026-11-10 — minimal footer + rear contact page (§43/§49), cover shows the STAGE
+ *   (Site shows the build, §65 — client details stay in Survey / PM), RFIs with no text never print 'null'; v0.1.0 2026-11-07)
  * Cover (house cover art, Service Contracts format) + Site visit pages: checks by stage · the notes recorded on this visit
  * (since `since`, else every open note) · open snags + RFIs. Every figure comes from the live SonorSite model — nothing re-counted.
  * Shared chrome: sonor-pdf-luxury.js on pdf-lib (neutral working-document theme, no cream).
@@ -24,16 +25,27 @@ window.SitePdf = (function () {
     try { var fp = lx.fadePngDataUrl(); if (fp) fade = await doc.embedPng(fp); } catch (e) { }
     var state = { dry: true, n: 0, total: 0 }, FOOT = A4.h - 70;
     function newPage(label) { state.n++; if (state.dry) return NOOP; var pg = doc.addPage([A4.w, A4.h]), P = lx.mk(pg, doc); lx.pageHead(P, F, label, state.n, state.total, DOC_LABEL, { brand: 'large' }); return P; }
-    function foot(P) { if (!state.dry) lx.pageFoot(P, F, { email: 'projects@sonor.co.uk' }); }
+    // v0.2.0 — §43 / §49 footer: '<project> · Page N' only; the contact block is the rear page, once
+    if (lx.footerMode) lx.footerMode('minimal', pd(m.project.ref || m.project.name || 'Sonor'));
+    function foot(P) { if (!state.dry) lx.pageFoot(P, F, lx.footerMode ? { pageNo: state.n } : { email: 'projects@sonor.co.uk' }); }
+    var stageLabel = m.stage ? (((m.site && m.site.stages) || []).find(function (x) { return x.key === m.stage; }) || {}).label || m.stage : 'All stages';
     async function build() {
       state.n = 1;
       if (!state.dry) {
         var hero = null; try { hero = await lx.loadCoverArt(doc, BASE + 'site-cover.jpg'); } catch (e) { }
         var cp = doc.addPage([A4.w, A4.h]), CP = lx.mk(cp, doc);
         lx.cover(CP, F, { hero: hero, fadeImg: fade, layout: hero ? 'art' : undefined, eyebrow: 'SITE VISIT', title: pd(m.project.name || 'Site visit'), subtitle: pd([m.project.address, m.project.ref].filter(Boolean).join(' · ')),
-          info: [['CLIENT', pd(m.project.client_name || '—')], ['DATE', fmtDate(new Date().toISOString())], ['ENGINEER', pd(m.engineer || 'Sonor')]], cediaImg: cedia, brandLarge: true, brandColour: hero ? lx.COL.CREAM : lx.COL.GOLD, topShade: 0.6, airy: true });
+          info: [['STAGE', pd(stageLabel)], ['DATE', fmtDate(new Date().toISOString())], ['ENGINEER', pd(m.engineer || 'Sonor')]], cediaImg: cedia, brandLarge: true, brandColour: hero ? lx.COL.CREAM : lx.COL.GOLD, topShade: 0.6, airy: true });
       }
       await sitePages(m.site);
+      // ── rear page (v0.2.0, §43 / §49) — the full contact block, once; counted so every head shows the true total ──
+      if (lx.rearPage) {
+        state.n++;
+        if (!state.dry) {
+          var co = ((window.__SONOR_BRAND__ || window.SonorBrand || {}).company) || {};
+          lx.rearPage(lx.mk(doc.addPage([A4.w, A4.h]), doc), F, { email_new: co.email || 'projects@sonor.co.uk', email_service: co.emailSupport || 'service@sonor.co.uk', phone: co.phone, web: String(co.url || 'sonor.co.uk').replace(/^https?:\/\//, ''), cediaImg: cedia });
+        }
+      }
     }
     // ── SITE VISIT pages (moved from Survey v0.13.0's report, B-804): checks per stage · this visit's site notes · open snags + RFIs — every figure is the
     // live SonorSite model (Tasks checks, site_notes, plan_notes), nothing re-counted here ──
@@ -67,7 +79,7 @@ window.SitePdf = (function () {
       y += 6;
       var sn = (site.snags || []).filter(function (x) { return !/done|cancelled/.test(x.status || ''); }), rf = (site.rfis || []).filter(function (x) { return !/closed|answered/.test(x.status || ''); });
       need(40); P.tracked('OPEN SNAGS (' + sn.length + ') · OPEN RFIs (' + rf.length + ')', M, y, 8.5, F.r, C.GOLD, 2.6); y += 18;
-      sn.concat(rf.map(function (r) { return { title: (r.rfi_id ? r.rfi_id + ' · ' : '') + r.text + (r.to ? ' (to ' + r.to + ')' : ''), status: 'RFI' }; })).forEach(function (x) {
+      sn.concat(rf.map(function (r) { return { title: (r.rfi_id ? r.rfi_id + ' · ' : '') + (r.text || '') + (r.to ? ' (to ' + r.to + ')' : ''), status: 'RFI' }; })).forEach(function (x) {
         var lines = lx.wrap(pd(x.title || ''), F.r, 9.5, W - 80).slice(0, 2); need(lines.length * 12 + 8, 'OPEN SNAGS · RFIs');
         lines.forEach(function (ln, i) { P.text(ln, M, y + i * 12, 9.5, F.r, C.INK); }); P.right(pd(x.status || ''), A4.w - M, y, 8.5, F.b, C.MUT);
         y += lines.length * 12 + 4; P.hline(M, A4.w - M, y, C.LINE, 0.4, 0.7); y += 6;
@@ -77,5 +89,5 @@ window.SitePdf = (function () {
     await build(); state.total = state.n; state.dry = false; await build();
     return doc.save();
   }
-  return { report: report, VERSION: '0.1.0' };
+  return { report: report, VERSION: '0.2.0' };
 })();
