@@ -199,6 +199,10 @@ window.__SONOR_BRAND__ = {
       partners:       '../HUB - Partners/index.html',
       'service-contracts': '../APP - Service Contracts/dashboard/sonor-service-contracts.html',
       takeover:       '../APP - Takeover/dashboard/sonor-takeover.html',
+      'estimate-cinema': '../APP - ESTIMATE - Cinema/dashboard/sonor-estimate-cinema.html',   // B-809
+      'estimate-media-wall': '../APP - ESTIMATE - Media Wall/dashboard/sonor-estimate-media-wall.html',   // B-809
+      'estimate-media-room': '../APP - ESTIMATE - Media Room/dashboard/sonor-estimate-media-room.html',   // B-809
+      'estimate-whole-home': '../APP - ESTIMATE - Whole House/dashboard/sonor-estimate-whole-home.html',   // B-809
       'led-calc':     '../APP - LED Calc/dashboard/sonor-led-calc.html',
       'knx-panel':    '../APP - KNX Panel Builder/dashboard/sonor-knx-panel.html',
       'c4-integration': '../APP - C4 Integration/dashboard/sonor-c4-integration.html',
@@ -309,6 +313,10 @@ window.__SONOR_BRAND__ = {
       partners:       'https://apps.sonor.co.uk/sonor-partners/',
       'service-contracts': 'https://apps.sonor.co.uk/sonor-service-contracts/',
       takeover:       'https://apps.sonor.co.uk/sonor-takeover/',
+      'estimate-cinema': 'https://apps.sonor.co.uk/sonor-estimate-cinema/',   // B-809
+      'estimate-media-wall': 'https://apps.sonor.co.uk/sonor-estimate-media-wall/',   // B-809
+      'estimate-media-room': 'https://apps.sonor.co.uk/sonor-estimate-media-room/',   // B-809
+      'estimate-whole-home': 'https://apps.sonor.co.uk/sonor-estimate-whole-home/',   // B-809
       'led-calc':     'https://apps.sonor.co.uk/sonor-led-calc/',
       'knx-panel':    'https://apps.sonor.co.uk/sonor-knx-panel/',
       'c4-integration': 'https://apps.sonor.co.uk/sonor-c4-integration/',
