@@ -1,4 +1,4 @@
-/* Sonor Site — APP (app-local, v0.3.0 — tap a device on the embedded plan → its checks + notes in a sheet; v0.2.0 — TODAY strip from the engineers' calendar (B-807) · PLAN tab = the Takeoffs site view embedded, device 📐 → centred on it (B-806); v0.1.0, 2026-11-07)
+/* Sonor Site — APP (app-local, v0.4.0 — service show / hide chips incl. 11 Electrical (Bryn: "nowhere to show hide electrical"), stage chips with progress, Snags & RFIs = Tasks + Portal snags open-first with closed folded away, notes filter, plan embedded without its header; v0.3.0 — tap a device on the embedded plan → its checks + notes in a sheet; v0.2.0 — TODAY strip from the engineers' calendar (B-807) · PLAN tab = the Takeoffs site view embedded, device 📐 → centred on it (B-806); v0.1.0, 2026-11-07)
  * Bryn: "survey and site are diff apps, survey is for that, site is for engineers, they are very similar but different levels of info".
  * The engineers' app: the project's devices with their checks per stage, site notes (note / change from plan / photo / question /
  * snag) on a device, floor, room or a 📍 point on the live Takeoffs plan, and the project's open snags + RFIs.
@@ -11,7 +11,12 @@
 (function () {
   'use strict';
   var CFG = window.__SITE_CONFIG__ || {}, $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.from((r || document).querySelectorAll(s)); };
-  var supa = null, OB = null, PID = null, M = null, stage = null, tab = 'devices', open = {}, loading = false, dirty = false, q = '', today = [], planSrc = null;
+  var supa = null, OB = null, PID = null, M = null, stage = null, tab = 'devices', open = {}, loading = false, dirty = false, q = '', today = [], planSrc = null, hide = {}, nfilter = 'open';
+  try { (localStorage.getItem('sonor_site_hide_svc') || '').split(',').forEach(function (k) { if (k) hide[k] = 1; }); } catch (e) { }
+  function nnKey(nn) { var n = parseInt(nn, 10); return n ? (n < 10 ? '0' : '') + n : '00'; }
+  function shown(d) { return !hide[nnKey(d.nn)]; }
+  function snagOpen(x) { return x.open != null ? x.open : !/^(done|cancelled|closed|resolved|verified)$/i.test(x.status || ''); }
+  function rfiOpen(x) { return x.open != null ? x.open : !/^(closed|answered|resolved|done)$/i.test(x.status || ''); }
   try { stage = localStorage.getItem('sonor_site_stage') || null; } catch (e) { }
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -21,7 +26,7 @@
   function toast(msg) { if (window.SonorShell && window.SonorShell.toast) return window.SonorShell.toast(msg); var t = $('#stToast'); t.textContent = msg; t.hidden = false; clearTimeout(t._t); t._t = setTimeout(function () { t.hidden = true; }, 2600); }
   function openModal(title, body) { $('#stModalTitle').textContent = title; var b = $('#stModalBody'); b.innerHTML = ''; b.appendChild(body); $('#stModal').hidden = false; }
   function closeModal() { $('#stModal').hidden = true; }
-  function svc(nn) { var B = window.__SONOR_BRAND__ || window.SonorBrand || {}; return (B.services || []).find(function (x) { return Number(x.nn) === Number(nn); }) || null; }
+  function svc(nn) { var G = window.SonorServiceGroups; if (G && G.service) return G.service(nn); var B = window.__SONOR_BRAND__ || window.SonorBrand || {}; return (B.services || []).find(function (x) { return Number(x.nn) === Number(nn); }) || null; }
   function dot(nn) { var s = svc(nn); return '<span class="st-dot" style="background:' + ((s && s.hex) || 'var(--text-muted)') + '"></span>'; }
   function prog(done, total) { var pc = total ? Math.round(done * 100 / total) : 0, tone = !total ? 'dim' : pc === 100 ? 'ok' : pc ? 'part' : 'none'; return '<span class="st-prog" data-tone="' + tone + '">' + done + '/' + total + '</span>'; }
 
@@ -136,17 +141,17 @@
   function render() {
     var host = $('#stApp'); if (!host) return;
     // the Plan tab holds a live iframe — never rebuild it for a tick / note (that would reload the plan); just refresh the counts
-    var fr = $('#stPlan'); if (tab === 'plan' && M && fr && fr.getAttribute('src') === (planSrc || planUrl())) { var sub = $('.st-sub', host); if (sub) sub.textContent = liveLine(); return; }
+    var fr = $('#stPlan'); if (tab === 'plan' && M && fr && fr.getAttribute('src') === embed(planSrc || planUrl())) { var sub = $('.st-sub', host); if (sub) sub.textContent = liveLine(); return; }
     var todayHtml = today.length ? '<div class="st-today"><span class="st-today-h">Today</span>' + today.map(function (t) {
       var tm = t.all_day ? 'All day' : new Date(t.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       return '<button class="st-job' + (t.project_id && t.project_id === PID ? ' on' : '') + '"' + (t.project_id ? ' data-job="' + esc(t.project_id) + '"' : ' disabled title="Not linked to a project in the calendar"') + '><b>' + esc(tm) + '</b> ' + esc(t.summary || 'Job') + '</button>';
     }).join('') + '</div>' : '';
     if (!PID) { host.innerHTML = todayHtml + '<p class="st-empty">Pick a project in the bar above' + (today.length ? ' or one of today’s jobs' : '') + '.</p>'; wire(host); return; }
     if (!M) { host.innerHTML = '<p class="st-empty">' + (loading ? 'Loading the live project…' : 'Could not load this project.') + '</p>'; return; }
-    var openNotes = M.notes.filter(function (n) { return n.status === 'open'; }).length, openSnags = M.snags.filter(function (s) { return !/done|cancelled/.test(s.status || ''); }).length, openRfis = M.rfis.filter(function (r) { return !/closed|answered/.test(r.status || ''); }).length;
+    var openNotes = M.notes.filter(function (n) { return n.status === 'open'; }).length, openSnags = M.snags.filter(snagOpen).length, openRfis = M.rfis.filter(rfiOpen).length;
     host.innerHTML = todayHtml + '<div class="st-bar"><span class="st-sub">' + esc(liveLine()) + '</span>' + (M.stale ? '<span class="st-stale" title="' + esc(M.error || '') + '">Offline copy · ' + esc(fmtDate(M.at)) + '</span>' : '')
       + '<span class="st-grow"></span><button class="btn btn-sm" data-act="reload" title="Reload from every app">⟳</button><button class="btn btn-sm" data-act="report">📄 Visit report</button><button class="btn btn-sm btn-primary" data-act="note">＋ Site note</button></div>'
-      + '<div class="st-bar st-stages"><button class="btn btn-sm' + (!stage ? ' active' : '') + '" data-stage="">All stages</button>' + (M.stages || []).map(function (s) { return '<button class="btn btn-sm' + (stage === s.key ? ' active' : '') + '" data-stage="' + esc(s.key) + '">' + esc(s.label) + '</button>'; }).join('') + '</div>'
+      + '<div class="st-bar st-stages"><button class="btn btn-sm' + (!stage ? ' active' : '') + '" data-stage="">All stages</button>' + (M.stages || []).map(function (s) { var p = stageTotals(s.key); if (!p.t) return ''; return '<button class="btn btn-sm st-stage' + (stage === s.key ? ' active' : '') + '" data-stage="' + esc(s.key) + '" style="--pc:' + Math.round(p.d * 100 / p.t) + '%">' + esc(s.label) + ' <span class="st-stage-n">' + p.d + '/' + p.t + '</span></button>'; }).join('') + '</div>'
       + '<div class="tab-bar st-tabs">' + [['devices', 'Devices'], ['plan', 'Plan'], ['notes', 'Site notes' + (openNotes ? ' · ' + openNotes : '')], ['snags', 'Snags & RFIs' + ((openSnags + openRfis) ? ' · ' + (openSnags + openRfis) : '')]].map(function (t) { return '<button class="tab' + (tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('')
       + (tab === 'devices' ? '<span class="nav-actions"><input id="stFind" type="search" placeholder="Find a device or room" value="' + esc(q) + '"></span>' : '') + '</div>'
       + '<div class="st-body" id="stBody"></div>';
@@ -154,15 +159,17 @@
     if (tab === 'devices') renderDevices(body); else if (tab === 'plan') renderPlan(body); else if (tab === 'notes') renderNotes(body); else renderSnags(body);
     wire(host);
   }
+  function stageTotals(key) { var t = 0, d = 0; M.devices.forEach(function (dv) { if (!shown(dv)) return; dv.checks.forEach(function (c) { if (c.stage === key) { t++; if (c.done) d++; } }); }); return { d: d, t: t }; }
   function liveLine() {
-    var tot = 0, dn = 0; M.devices.forEach(function (d) { var p = window.SonorSite.stageProgress(d, stage); tot += p.total; dn += p.done; });
+    var tot = 0, dn = 0; M.devices.forEach(function (d) { if (!shown(d)) return; var p = window.SonorSite.stageProgress(d, stage); tot += p.total; dn += p.done; });
     return M.devices.length + ' devices · ' + dn + '/' + tot + ' checks' + (M.floors.length ? ' · ' + M.floors.map(function (f) { return f.code + (f.plan ? ' ' + (f.plan.revision_label || 'plan') : ''); }).join(' · ') : '');
   }
   function match(d) { if (!q) return true; var s = (d.name + ' ' + d.key + ' ' + (d.room_name || '') + ' ' + (d.model || '')).toLowerCase(); return q.toLowerCase().split(/\s+/).every(function (w) { return s.indexOf(w) >= 0; }); }
   function renderDevices(body) {
     var groups = window.SonorSite.byFloor(M); if (!groups.length) { body.innerHTML = '<p class="st-empty">No devices in this project’s design yet — they appear as soon as Takeoffs or Engineering has them.</p>'; return; }
+    body.innerHTML = svcChips();
     groups.forEach(function (gr) {
-      var list = gr.devices.filter(function (d) { return match(d) && (!stage || d.checks.some(function (c) { return c.stage === stage; }) || d.notes.length); }); if (!list.length) return;
+      var list = gr.devices.filter(function (d) { return shown(d) && match(d) && (!stage || d.checks.some(function (c) { return c.stage === stage; }) || d.notes.length); }); if (!list.length) return;
       var fp = list.reduce(function (a, d) { var p = window.SonorSite.stageProgress(d, stage); a.d += p.done; a.t += p.total; return a; }, { d: 0, t: 0 });
       var sec = document.createElement('section'); sec.className = 'st-floor';
       sec.innerHTML = '<h4>' + esc(gr.floor.name || gr.floor.code) + (gr.floor.plan ? ' <span class="st-rev">plan ' + esc(gr.floor.plan.revision_label || '') + '</span>' : '') + ' ' + prog(fp.d, fp.t)
@@ -176,8 +183,19 @@
     $$('[data-dev]', body).forEach(function (r) { r.onclick = function (e) { if (e.target.closest('[data-chk],[data-devnote],a')) return; open[r.dataset.dev] = !open[r.dataset.dev]; render(); }; });
     $$('[data-chk]', body).forEach(function (b) { b.onclick = function () { var d = M.devices.find(function (x) { return x.key === b.dataset.dk; }), c = d && d.checks.find(function (x) { return x.task_id === b.dataset.task && x.key === b.dataset.chk; }); if (c) tick(d, c); }; });
     $$('[data-devnote]', body).forEach(function (b) { b.onclick = function () { noteSheet({ device: M.devices.find(function (x) { return x.key === b.dataset.devnote; }) }); }; });
+    $$('[data-svc]', body).forEach(function (b) { b.onclick = function () { var k = b.dataset.svc; if (k === '*') hide = {}; else if (hide[k]) delete hide[k]; else hide[k] = 1; try { localStorage.setItem('sonor_site_hide_svc', Object.keys(hide).join(',')); } catch (e) { } render(); }; });
     $$('[data-floorplan]', body).forEach(function (a) { a.onclick = function (e) { e.preventDefault(); planSrc = a.getAttribute('href'); tab = 'plan'; render(); }; });
     $$('[data-dev-link="site"]', body).forEach(function (a) { a.onclick = function (e) { e.preventDefault(); planSrc = a.getAttribute('href'); tab = 'plan'; render(); }; });
+  }
+  // v0.4.0 — show / hide by service (every service the design holds, 11 Electrical / 12 Construction included), remembered on this device
+  function svcChips() {
+    var cnt = {}; M.devices.forEach(function (d) { var k = nnKey(d.nn); cnt[k] = (cnt[k] || 0) + 1; });
+    var keys = Object.keys(cnt).sort(function (a, b) { var G = window.SonorServiceGroups; return G ? G.rank(a) - G.rank(b) : a.localeCompare(b); });
+    var nHidden = keys.filter(function (k) { return hide[k]; }).length;
+    return '<div class="st-svcs" role="group" aria-label="Show or hide services">' + keys.map(function (k) {
+      var s = svc(k), name = k === '00' ? 'No service' : (s ? (s.client || s.brand) : 'Service ' + k);
+      return '<button class="st-svc' + (hide[k] ? ' off' : '') + '" data-svc="' + k + '" aria-pressed="' + !hide[k] + '" style="--c:' + ((s && s.hex) || 'var(--text-muted)') + '" title="' + (hide[k] ? 'Show ' : 'Hide ') + esc(name) + '"><span class="st-dot"></span>' + esc(name) + ' <span class="st-svc-n">' + cnt[k] + '</span></button>';
+    }).join('') + (nHidden ? '<button class="st-svc st-svc-all" data-svc="*">Show all</button>' : '') + '</div>';
   }
   function deviceRow(d) {
     var p = window.SonorSite.stageProgress(d, stage), isOpen = !!open[d.key], checks = d.checks.filter(function (c) { return !stage || c.stage === stage; }), nOpen = d.notes.filter(function (n) { return n.status === 'open'; }).length;
@@ -208,25 +226,42 @@
     if (u) return u; var B = window.__SONOR_BRAND__ || {}, base = (B.appUrls && B.appUrls.hosted && B.appUrls.hosted.takeoffsSite) || 'https://apps.sonor.co.uk/sonor-takeoffs/site.html';
     return base + '?view=site&pid=' + encodeURIComponent(PID);
   }
+  function embed(u) { return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'embed=1'; }   // Takeoffs site view ≥ 1.5.0 drops its page header inside the Site app
   function renderPlan(body) {
     var src = planSrc || planUrl();
-    body.innerHTML = '<div class="st-plan"><iframe id="stPlan" title="Site plan (Takeoffs site view)" src="' + esc(src) + '" allow="fullscreen"></iframe></div><p class="st-chk-m">Read-only plan from Takeoffs · site notes show as numbered pins · needs signal · <a class="st-link" href="' + esc(src) + '" target="_blank" rel="noopener">Open full screen ↗</a></p>';
+    body.innerHTML = '<div class="st-plan"><iframe id="stPlan" title="Site plan (Takeoffs site view)" src="' + esc(embed(src)) + '" allow="fullscreen"></iframe></div><p class="st-chk-m">Read-only plan from Takeoffs · site notes show as numbered pins · needs signal · <a class="st-link" href="' + esc(src) + '" target="_blank" rel="noopener">Open full screen ↗</a></p>';
   }
+  var NF = [['open', 'Open'], ['change', 'Changes'], ['question', 'Questions'], ['snag', 'Snags'], ['all', 'All']];
+  function notePass(n, f) { return f === 'all' ? true : f === 'open' ? (n.status === 'open' || n.status === 'accepted') : n.kind === f; }
   function renderNotes(body) {
-    var notes = M.notes; if (!notes.length) { body.innerHTML = '<p class="st-empty">No site notes yet. Use ＋ Site note, or open a device and add one to it.</p>'; return; }
-    body.innerHTML = notes.map(function (n) {
+    var all = M.notes; if (!all.length) { body.innerHTML = '<p class="st-empty">No site notes yet. Use ＋ Site note, or open a device and add one to it.</p>'; return; }
+    var notes = all.filter(function (n) { return notePass(n, nfilter); });
+    body.innerHTML = '<div class="st-svcs">' + NF.map(function (f) { var c = all.filter(function (n) { return notePass(n, f[0]); }).length; return '<button class="st-svc' + (nfilter === f[0] ? ' on' : '') + '" data-nf="' + f[0] + '">' + f[1] + ' <span class="st-svc-n">' + c + '</span></button>'; }).join('') + '</div>'
+      + (notes.length ? '' : '<p class="st-empty">Nothing here.</p>') + notes.map(function (n) {
       var where = [n.floor_code, n.room, n.device_label].filter(Boolean).join(' · ') + (n.x != null || n.to_x != null ? ' · 📍' : '');
       var acts = n.status === 'open' ? (n.kind === 'question' ? '<button class="btn btn-sm" data-res="rfi">Raise RFI</button>' : '') + (n.kind !== 'change' ? '<button class="btn btn-sm" data-res="snag">Snag → Tasks</button>' : '<span class="st-chk-m">reviewed in Takeoffs</span>') + '<button class="btn btn-sm" data-res="resolve">Resolved</button><button class="btn btn-sm" data-res="dismiss">Dismiss</button>'
         : (n.status === 'accepted' || n.status === 'applied') ? '' : '<button class="btn btn-sm" data-res="reopen">Reopen</button>';
-      return '<div class="st-ncard" data-id="' + esc(n.id) + '">' + (n.photo_path ? '<img class="st-ph" loading="lazy" src="' + esc(photoUrl(n.photo_path)) + '" alt="">' : '') + '<div class="st-nmain">' + noteLine(n)
-        + '<div class="st-chk-m">' + esc(where) + ' · ' + esc(who(n.created_by)) + ' · ' + esc(fmtDate(n.created_at)) + '</div><div class="st-acts">' + acts + '</div></div></div>';
+      var rv = n.review && n.review.note ? '<div class="st-chk-m">↳ ' + esc(n.review.note) + (n.review.by ? ' — ' + esc(who(n.review.by)) : '') + '</div>' : '';
+      return '<div class="st-ncard" data-id="' + esc(n.id) + '" data-status="' + esc(n.status) + '">' + (n.photo_path ? '<img class="st-ph" loading="lazy" src="' + esc(photoUrl(n.photo_path)) + '" alt="">' : '') + '<div class="st-nmain">' + noteLine(n)
+        + '<div class="st-chk-m">' + esc(where) + ' · ' + esc(who(n.created_by)) + ' · ' + esc(fmtDate(n.created_at)) + '</div>' + rv + '<div class="st-acts">' + acts + '</div></div></div>';
     }).join('');
+    $$('[data-nf]', body).forEach(function (b) { b.onclick = function () { nfilter = b.dataset.nf; render(); }; });
     $$('[data-res]', body).forEach(function (b) { b.onclick = function () { var id = b.closest('[data-id]').dataset.id, n = M.notes.find(function (x) { return x.id === id; }); if (n) resolve(n, b.dataset.res); }; });
   }
+  // v0.4.0 — open first (priority, newest), Tasks + Portal snags together, closed ones folded away; each links to where it is worked
+  function tasksUrl() { var B = window.__SONOR_BRAND__ || {}, base = (B.appUrls && B.appUrls.hosted && B.appUrls.hosted.tasks) || 'https://apps.sonor.co.uk/sonor-tasks/'; return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'project=' + encodeURIComponent(PID) + '&view=list'; }
+  function snagCard(x) {
+    var pr = x.priority ? '<span class="st-pri" data-p="' + esc(x.priority) + '">' + esc(String(x.priority).toUpperCase()) + '</span>' : '';
+    return '<div class="st-scard' + (snagOpen(x) ? '' : ' closed') + '">' + dot(x.service_nn) + '<div class="st-nmain"><div>' + pr + ' ' + esc(x.title || '') + '</div><div class="st-chk-m">'
+      + esc([x.status, x.floor, x.assignee ? who(x.assignee) : null, x.source === 'portal' ? 'Portal' : 'Tasks', x.created_at ? fmtDate(x.created_at) : null].filter(Boolean).join(' · ')) + '</div></div></div>';
+  }
+  function rfiCard(x) { return '<div class="st-scard' + (rfiOpen(x) ? '' : ' closed') + '"><span class="st-kind" data-k="question">' + esc(x.rfi_id || 'RFI') + '</span><div class="st-nmain"><div>' + esc(x.text || '') + '</div><div class="st-chk-m">' + esc([x.status, x.floor, x.to ? 'to ' + x.to : null].filter(Boolean).join(' · ')) + (x.answer ? ' · ↳ ' + esc(x.answer) : '') + '</div></div></div>'; }
   function renderSnags(body) {
-    var s = M.snags.map(function (x) { return '<div class="st-note"><span class="st-kind" data-k="snag">Snag</span> ' + esc(x.title) + '<span class="st-chk-m"> · ' + esc(x.status) + (x.floor ? ' · ' + esc(x.floor) : '') + '</span></div>'; }).join('');
-    var r = M.rfis.map(function (x) { return '<div class="st-note"><span class="st-kind" data-k="question">' + esc(x.rfi_id || 'RFI') + '</span> ' + esc(x.text) + '<span class="st-chk-m"> · ' + esc(x.status) + (x.to ? ' · to ' + esc(x.to) : '') + '</span></div>'; }).join('');
-    body.innerHTML = '<h4>Snags (Tasks)</h4>' + (s || '<p class="muted">None open.</p>') + '<h4>RFIs (Plan Notes)</h4>' + (r || '<p class="muted">None.</p>');
+    var so = M.snags.filter(snagOpen), sc = M.snags.filter(function (x) { return !snagOpen(x); }), ro = M.rfis.filter(rfiOpen), rc = M.rfis.filter(function (x) { return !rfiOpen(x); });
+    body.innerHTML = '<h4>Open snags <span class="st-badge">' + so.length + '</span><span class="st-grow"></span><a class="st-link" href="' + esc(tasksUrl()) + '" target="_blank" rel="noopener">Open in Tasks ↗</a></h4>'
+      + (so.map(snagCard).join('') || '<p class="muted">None open.</p>')
+      + '<h4>Open RFIs <span class="st-badge">' + ro.length + '</span><span class="st-grow"></span><span class="st-chk-m">answered in Takeoffs → Plan Notes</span></h4>' + (ro.map(rfiCard).join('') || '<p class="muted">None open.</p>')
+      + ((sc.length + rc.length) ? '<details class="st-closed"><summary>Closed — ' + sc.length + ' snag' + (sc.length === 1 ? '' : 's') + ', ' + rc.length + ' RFI' + (rc.length === 1 ? '' : 's') + '</summary>' + sc.map(snagCard).join('') + rc.map(rfiCard).join('') + '</details>' : '');
   }
   function wire(host) {
     $$('[data-act]', host).forEach(function (b) { b.onclick = function () { var a = b.dataset.act; if (a === 'reload') load(); else if (a === 'note') noteSheet({}); else if (a === 'report') report(); }; });
@@ -307,17 +342,18 @@
   }
 
   // ---------- visit report ----------
+  function visitStart() { var d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString(); }   // the visit = today on site
   async function report() {
     if (!M) return; toast('Building the visit report…');
     try {
       var proj = (window.SonorProjectBar && window.SonorProjectBar.getProject && window.SonorProjectBar.getProject(PID)) || { id: PID, name: '' };
-      var bytes = await window.SitePdf.report({ project: proj, site: M, engineer: who(me()) || null, stage: stage, since: new Date(Date.now() - 24 * 3600 * 1000).toISOString() });
+      var bytes = await window.SitePdf.report({ project: proj, site: M, engineer: who(me()) || null, stage: stage, since: visitStart() });
       var name = ((proj.ref || proj.name || 'site') + ' — site visit ' + new Date().toISOString().slice(0, 10) + '.pdf').replace(/[\/\\:]/g, '-');
       var b = new Blob([bytes], { type: 'application/pdf' }), u = URL.createObjectURL(b), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { a.remove(); URL.revokeObjectURL(u); }, 1500);
       toast('Report ready');
     } catch (e) { console.error(e); toast('Report failed: ' + e.message); }
   }
 
-  window.SiteApp = { boot: boot, model: function () { return M; }, reload: load, today: function () { return today; }, deviceSheet: deviceSheet, VERSION: '0.3.0' };
+  window.SiteApp = { boot: boot, model: function () { return M; }, reload: load, today: function () { return today; }, deviceSheet: deviceSheet, VERSION: '0.4.0' };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

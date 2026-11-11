@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Site — Sonor</title>
-<!-- APP - Site v0.3.0 (2026-11-07 — tap a device on the plan → its checks; v0.2.0 Today strip + Plan tab; v0.1.0 born) — the engineers' on-site app. Bryn: "survey and site are diff apps, survey is for that, site is for
+<!-- APP - Site v0.4.0 (2026-11-10 — service show / hide incl. Electrical, stage progress chips, Snags & RFIs open-first with Portal snags, notes filter, visit report v2; v0.3.0 2026-11-07 — tap a device on the plan → its checks; v0.2.0 Today strip + Plan tab; v0.1.0 born) — the engineers' on-site app. Bryn: "survey and site are diff apps, survey is for that, site is for
      engineers, they are very similar but different levels of info". Contract: ../../SITE-ARCHITECTURE.md -->
 <link rel="icon" href="../data/favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -42,11 +42,12 @@
 <script src="../data/sonor-pdf-theme.js"></script>
 <script src="../data/sonor-pdf-luxury.js"></script>
 <script src="../data/site-pdf.js"></script>
+<script src="../data/sonor-wifi-card.js"></script>   <!-- v0.5.0 shared Wi-Fi handover card (root master, synced) -->
 <style>
 /* ═══ SONOR SITE — app-local LAYOUT only. No :root palette, no raw hex in chrome (S-4.1). ═══ */
 * { box-sizing: border-box; }
 body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var(--body); color: var(--text-primary); padding-bottom: env(safe-area-inset-bottom); }
-#stApp { max-width: 980px; margin: 0 auto; padding: 4px 10px 40px; }
+#stApp { max-width: 1320px; margin: 0 auto; padding: 4px 10px 40px; }
 .st-empty { padding: 40px 12px; text-align: center; color: var(--text-muted); }
 .st-bar { display: flex; align-items: center; gap: 6px; padding: 8px 4px; flex-wrap: wrap; }
 .st-stages { border-bottom: 1px solid var(--border); }
@@ -92,6 +93,16 @@ body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var
 .st-sheet .st-dev { cursor: default; } .st-sheet .st-checks { padding-left: 0; border-bottom: 0; }
 #stToast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 500; background: var(--card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.35); } #stToast[hidden] { display: none; }
 #stSync { white-space: nowrap; font-size: 12px; } #stSync[data-tone="warn"] { color: var(--amber); } #stSync[data-tone="ok"] { color: var(--green); }
+.st-stage { position: relative; overflow: hidden; } .st-stage::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: var(--pc, 0%); background: var(--green); opacity: .8; }
+.st-stage-n { font: 600 10.5px 'DM Mono', monospace; opacity: .7; margin-left: 2px; }
+.st-svcs { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 2px 4px; }
+.st-svc { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12.5px; color: var(--text-primary); background: var(--card); border: 1px solid color-mix(in srgb, var(--c, var(--border)) 55%, var(--border)); border-radius: 16px; padding: 4px 11px 4px 9px; min-height: 34px; cursor: pointer; }
+.st-svc .st-dot { background: var(--c); } .st-svc.off { opacity: .4; border-style: dashed; } .st-svc.off .st-dot { background: transparent; border: 1.5px solid var(--c); }
+.st-svc.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, var(--card)); } .st-svc-n { font: 600 10.5px 'DM Mono', monospace; color: var(--text-muted); } .st-svc-all { border-style: dashed; }
+.st-ncard[data-status="dismissed"], .st-ncard[data-status="resolved"], .st-ncard[data-status="applied"] { opacity: .6; }
+.st-scard { display: flex; gap: 10px; align-items: flex-start; padding: 10px 6px; border-bottom: 1px solid var(--border); font-size: 13.5px; } .st-scard > .st-dot { margin-top: 5px; } .st-scard.closed { opacity: .55; }
+.st-pri { font: 700 10px 'DM Mono', monospace; padding: 1px 5px; border-radius: 5px; border: 1px solid currentColor; color: var(--text-muted); } .st-pri[data-p="p1"] { color: var(--red); } .st-pri[data-p="p2"] { color: var(--amber); }
+.st-closed { margin-top: 16px; } .st-closed summary { cursor: pointer; font-size: 13px; color: var(--text-muted); padding: 8px 4px; }
 @media (max-width: 600px) { .st-dev-r, .st-dev-k { display: none; } #stFind { width: 140px; } }   /* iPhone: the device name + progress only */
 </style>
 </head>
@@ -104,10 +115,13 @@ body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var
 <div class="st-modal" id="stModal" hidden><div class="st-modal-card"><div class="st-modal-h"><span id="stModalTitle"></span><button class="btn btn-sm" id="stModalClose" type="button">✕</button></div><div class="st-modal-b" id="stModalBody"></div></div></div>
 <div id="stToast" hidden></div>
 <script>
-  const APP_VERSION = '0.3.0';
+  const APP_VERSION = '0.5.0';   // 2026-11-11 Wi-Fi card button (shared SonorWifiCard — images for WhatsApp, A4, copy-ready message from Network Map)
   window.APP_VERSION = APP_VERSION;   // SonorApp reads global.APP_VERSION for the header badge
   SonorApp.init({ appKey: 'site', appName: 'Site', repo: 'sonor-site', appVersion: APP_VERSION });
 </script>
 <script src="../data/site-app.js"></script>
+<script>   // v0.5.0 — Wi-Fi card for the active project (Network Map is the source); engineers share it to the client on site
+  if (window.SonorWifiCard) SonorWifiCard.button(document.querySelector('.tab-bar .nav-actions'), { label: '📶 Wi-Fi card', prepend: true });
+</script>
 </body>
 </html>

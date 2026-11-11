@@ -1,6 +1,10 @@
-# Site — Claude Code Context (v0.3.0)
+# Site — Claude Code Context (v0.5.0)
 
-> **Current version: v0.3.0** — 2026-11-07 PLAN ↔ CHECKS: tap a device on the embedded plan and its checks + notes open in a sheet over the plan (Takeoffs site view 1.4.0 posts `sonor:site-device` to the host, same origin only); ticks no longer reload the plan (the Plan tab keeps its iframe and only refreshes the counts).
+> **Current version: v0.5.0** — 2026-11-11 **📶 Wi-Fi card** in the tab bar (shared root master `sonor-wifi-card.js`, SonorWifiCard): loads the active project's networks from Network Map (`network_configs`) and opens the shared panel — phone image per SSID for WhatsApp (Share… opens the phone's share sheet with the image), A4 PNG + PDF, copy-ready message. Bryn: "tie this in with network map and other associated apps so quick export is possible from relevant places".
+
+> Previous — **v0.4.0** — 2026-11-10 (Bryn: "nowhere to show hide electrical on here plus it needs improving in general … not enough examples of tasks and snags in this demo project to give a meaningful looking pdf export"): **service show / hide chips** on Devices (every service in the design, 11 Electrical / 12 Construction named via SonorServiceGroups 1.1.0, remembered per device; the live line and stage chips follow it) · **stage chips show progress** (done / total + bar) · **Snags & RFIs** = Tasks snags + the project's Portal snags (SonorSite 1.3.0, samples hidden), open first by priority, closed folded away, Open in Tasks link · **Site notes filter** (Open · Changes · Questions · Snags · All) with the review note shown · wider page (1320 px) · Plan embedded without the Takeoffs header (`&embed=1`, site view 1.5.0) · **visit report v2** (`site-pdf.js` 0.2.0): at-a-glance figures + who was on site + checks by stage with this visit drawn in, work done by stage → room, notes by kind with their review, open snags table + open RFIs, still to do per stage; the visit = today. Demo seed: `supabase/seeds/2026-11-10_demo_site_visit.sql` (18 site notes, 89 ticks, 3 snags + RFI-008 through the RPCs, all flagged `demo_seed` / `demo_visit`). Render test from the live demo rows: `tests/demo-report/` (→ `site-visit-demo.pdf`).
+
+> Previous — **v0.3.0** — 2026-11-07 PLAN ↔ CHECKS: tap a device on the embedded plan and its checks + notes open in a sheet over the plan (Takeoffs site view 1.4.0 posts `sonor:site-device` to the host, same origin only); ticks no longer reload the plan (the Plan tab keeps its iframe and only refreshes the counts).
 >
 > **Previous: v0.2.0** — 2026-11-07 TODAY + PLAN: a **Today** strip of the signed-in engineer's calendar jobs (`tasks_gcal_events` — the engineers' Google Calendar is the scheduling SSOT; tap = switch project; one job today and no project picked = it opens itself; cached for offline) (B-807) · a **Plan** tab = the Takeoffs read-only site view embedded (`sonor-takeoffs/site.html`, Takeoffs v5.277.0 adds the site-notes pins), floor "Plan" links and each device's 📐 link open it centred on that device (B-806). Needs signal for the plan.
 >
@@ -47,6 +51,7 @@ None.
 ## Feature timeline
 - v0.1.0 (2026-11-07) — born from Survey's Site panel; full-page engineers' app; visit report; shared outbox / plan masters extracted.
 - v0.2.0 (2026-11-07) — Today strip from the engineers' calendar; Plan tab embedding the Takeoffs site view.
+- v0.4.0 (2026-11-10) — service show / hide (Electrical), stage progress chips, Snags & RFIs with Portal snags, notes filter, visit report v2, demo site visit seed.
 - v0.3.0 (2026-11-07) — device tapped on the plan → checks sheet (postMessage from the site view).
 
 ## Rules (app-specific)

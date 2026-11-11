@@ -1,9 +1,10 @@
 <!doctype html><html lang="en" data-theme="graphite"><head><meta charset="utf-8"><!-- Site app harness (2026-11-07): stub client with real row shapes; real SonorOutbox (IndexedDB), SonorSite, site-app.js, site-pdf.js. python3 run.py -->
 <link rel="stylesheet" href="../../data/brand.css"><link rel="stylesheet" href="../../data/sonor-components.css"><style>
+/* copied from dashboard/sonor-site.html */
 /* ═══ SONOR SITE — app-local LAYOUT only. No :root palette, no raw hex in chrome (S-4.1). ═══ */
 * { box-sizing: border-box; }
 body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var(--body); color: var(--text-primary); padding-bottom: env(safe-area-inset-bottom); }
-#stApp { max-width: 980px; margin: 0 auto; padding: 4px 10px 40px; }
+#stApp { max-width: 1320px; margin: 0 auto; padding: 4px 10px 40px; }
 .st-empty { padding: 40px 12px; text-align: center; color: var(--text-muted); }
 .st-bar { display: flex; align-items: center; gap: 6px; padding: 8px 4px; flex-wrap: wrap; }
 .st-stages { border-bottom: 1px solid var(--border); }
@@ -49,11 +50,21 @@ body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var
 .st-sheet .st-dev { cursor: default; } .st-sheet .st-checks { padding-left: 0; border-bottom: 0; }
 #stToast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 500; background: var(--card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.35); } #stToast[hidden] { display: none; }
 #stSync { white-space: nowrap; font-size: 12px; } #stSync[data-tone="warn"] { color: var(--amber); } #stSync[data-tone="ok"] { color: var(--green); }
+.st-stage { position: relative; overflow: hidden; } .st-stage::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: var(--pc, 0%); background: var(--green); opacity: .8; }
+.st-stage-n { font: 600 10.5px 'DM Mono', monospace; opacity: .7; margin-left: 2px; }
+.st-svcs { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 2px 4px; }
+.st-svc { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12.5px; color: var(--text-primary); background: var(--card); border: 1px solid color-mix(in srgb, var(--c, var(--border)) 55%, var(--border)); border-radius: 16px; padding: 4px 11px 4px 9px; min-height: 34px; cursor: pointer; }
+.st-svc .st-dot { background: var(--c); } .st-svc.off { opacity: .4; border-style: dashed; } .st-svc.off .st-dot { background: transparent; border: 1.5px solid var(--c); }
+.st-svc.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, var(--card)); } .st-svc-n { font: 600 10.5px 'DM Mono', monospace; color: var(--text-muted); } .st-svc-all { border-style: dashed; }
+.st-ncard[data-status="dismissed"], .st-ncard[data-status="resolved"], .st-ncard[data-status="applied"] { opacity: .6; }
+.st-scard { display: flex; gap: 10px; align-items: flex-start; padding: 10px 6px; border-bottom: 1px solid var(--border); font-size: 13.5px; } .st-scard > .st-dot { margin-top: 5px; } .st-scard.closed { opacity: .55; }
+.st-pri { font: 700 10px 'DM Mono', monospace; padding: 1px 5px; border-radius: 5px; border: 1px solid currentColor; color: var(--text-muted); } .st-pri[data-p="p1"] { color: var(--red); } .st-pri[data-p="p2"] { color: var(--amber); }
+.st-closed { margin-top: 16px; } .st-closed summary { cursor: pointer; font-size: 13px; color: var(--text-muted); padding: 8px 4px; }
 @media (max-width: 600px) { .st-dev-r, .st-dev-k { display: none; } #stFind { width: 140px; } }   /* iPhone: the device name + progress only */
 </style></head><body>
 <div id="projectBarHost"></div><div class="tab-bar"><span class="nav-actions"><button class="btn btn-sm" id="stSync">…</button></span></div><main id="stApp"></main>
 <div class="st-modal" id="stModal" hidden><div class="st-modal-card"><div class="st-modal-h"><span id="stModalTitle"></span><button class="btn btn-sm" id="stModalClose">✕</button></div><div class="st-modal-b" id="stModalBody"></div></div></div><div id="stToast" hidden></div>
-<script src="../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script><script src="../../node_modules/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
+<script src="../../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script><script src="../../../node_modules/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
 <script src="../../data/sonor-brand.js"></script><script src="../../data/sonor-service-groups.js"></script><script src="../../data/sonor-device-links.js"></script><script src="../../data/sonor-outbox.js"></script><script src="../../data/sonor-plan-image.js"></script><script src="../../data/sonor-site.js"></script>
 <script src="../../data/sonor-pdf-theme.js"></script><script src="../../data/sonor-pdf-luxury.js"></script><script src="../../data/site-pdf.js"></script>
 <script>

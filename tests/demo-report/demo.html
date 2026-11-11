@@ -1,0 +1,18 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Site visit report — demo render</title>
+<!-- Renders the Site visit report from demo-model.json (the Demo project's live rows, compacted by build_model.py). run_demo.py drives it. -->
+<script src="../../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script>
+<script src="../../../node_modules/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
+<script src="../../data/sonor-brand.js"></script>
+<script src="../../data/sonor-service-groups.js"></script>
+<script src="../../data/sonor-site.js"></script>
+<script src="../../data/sonor-pdf-theme.js"></script>
+<script src="../../data/sonor-pdf-luxury.js"></script>
+<script src="../../data/site-pdf.js"></script>
+</head><body>
+<script>
+window.renderDemo = async function (model) {
+  window.SonorSite.fillPlaces(model.devices);   // as the live seam does
+  var bytes = await window.SitePdf.report({ project: model.project, site: model, engineer: 'Bryn', since: '2026-11-10T00:00:00Z' });
+  var s = ''; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s);
+};
+</script></body></html>
